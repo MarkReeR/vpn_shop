@@ -6,58 +6,54 @@ from aiogram import Bot, Dispatcher, html
 from aiogram.filters import CommandStart, Command
 from aiogram.types import Message
 from aiogram import types
+import aiogram_dialog
 
-# from aiogram.types import ReplyKeyboardMarkup
-
-import config
-from loader import dp, bot
-from markups import markups
+from filters.chat_types import ChatTypeFilter
 from callbacks import callback_router
-from localization import ru as language
+from handlers.user_private import handler_router
+from config import language
+from loader import dp, bot
+import schedules
 
 
+async def on_startup():
+    logging.basicConfig(
+        level=logging.INFO, 
+        format=u'%(filename)s:%(lineno)d #%(levelname)-8s [%(asctime)s] - %(name)s - %(message)s',
+        stream=sys.stdout
+        )
+    logging.info("Starting bot")
+    webhook = await bot.get_webhook_info()
+    print("======== SET WEBHOOK ========")
+    print(webhook)
 
-@dp.message(CommandStart())
-async def cmd_start(message: Message) -> None:
-    # TODO
-    # if await user.is_admin:
-    #     markup.add(types.KeyboardButton(constants.language.admin_panel))
+    # await create_db()
 
-    await message.answer_sticker('CAACAgIAAxkBAAM6Zq55RNyW6hyhfjZHHV49y6kl-nYAAhsAAwnHpAij-M9iBHukZjUE')
-    # TODO add {cart} ...
-    values = [[language.cart, 'cart'], [language.help, 'help'], [language.support, 'support']]
-    markup = await markups.create_inline(values)
-    await message.answer(f"Приветствую, {html.bold(message.from_user.full_name)}!\n"
-                        "Ты можешь использовать:\n"
-                        f"  1) /{values[0][1]} чтобы ознакомится с наим товаром.\n"
-                        f"  2) /{values[1][1]} для того чтобы узнать установить VPN\n"
-                        f"  3) /{values[2][1]} чтобы связатся с нами.", 
-                        reply_markup=markup)
-
-@dp.message()
-async def answer(message: Message) -> None:
-    # If the user writes something other than commands
-    try:
-        await message.reply("Используйте команды.")
-    except TypeError:
-        await message.answer("Nice try!")
-
-async def on_shutdown():
+async def on_shutdown(bot: Bot):
     logging.warning("Shutting down..")
     await bot.delete_webhook()
     await dp.storage.close()
-    await dp.storage.wait_closed()
-    logging.warning("Bot down")
+    await bot.session.close()
+    webhook = await bot.delete_webhook(drop_pending_updates=True)
+    logging.warning("Bot down", webhook)
+
+def add_routes(dp):
+    dp.include_router(callback_router)
+    dp.include_router(handler_router)
 
 async def main() -> None:
-        dp.include_router(callback_router)
-        await dp.start_polling(bot)
+    dp.startup.register(on_startup)
+    dp.shutdown.register(on_shutdown)
+    # dp.update.middleware(DataBaseSession(session_pool=session_maker))
+
+    dp.message.filter(ChatTypeFilter(["private"]))
+    add_routes(dp)
+    
+    await dp.start_polling(bot, allowed_updates=dp.resolve_used_update_types(), on_startup=schedules.on_startup)
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO, stream=sys.stdout)
-
     try:
         asyncio.run(main())
-    except KeyboardInterrupt:
-        on_shutdown()
+    except (KeyboardInterrupt, SystemExit):
+        logging.error("Bot stopped!")

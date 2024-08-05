@@ -1,26 +1,37 @@
 from aiogram import F, Router
 from aiogram.types import CallbackQuery
 
-from markups import markups
-from localization import ru as language
+from handlers.user_private import cmd_start
+from markups.markups import markups
+from config import language
 
 callback_router = Router()
 
 
+async def handle_callback(callback: CallbackQuery, text: str, buttons: list) -> None:
+    markup = await markups.create_inline(buttons)
+    await callback.message.edit_text(text, reply_markup=markup)
+
+@callback_router.callback_query(F.data == 'start')
+async def start(callback: CallbackQuery):
+    text = language.start_text(callback.from_user.full_name)
+    buttons = language.start_buttons
+    await handle_callback(callback, text, buttons)
+
 @callback_router.callback_query(F.data == 'cart')
 async def call_cart(callback: CallbackQuery) -> None:
-    await callback.answer("")
-    await callback.message.edit_text("В разработек")
+    text = language.cart_info_text
+    buttons = language.cart_buttons
+    await handle_callback(callback, text, buttons)
 
-@callback_router.callback_query(F.data == 'help')
-async def call_help(callback: CallbackQuery) -> None:
-    await callback.answer("")
-    await callback.message.edit_text(language.help_data, 
-                                     reply_markup=await markups.create_inline([[language.cart, 'cart'], [language.help, 'help'], [language.support, 'support']]))
+@callback_router.callback_query(F.data == 'how_to_use')
+async def how_to_use(callback: CallbackQuery) -> None:
+    text = language.how_to_use
+    buttons = language.help_buttons
+    await handle_callback(callback, text, buttons)
 
 @callback_router.callback_query(F.data == 'support')
 async def call_support(callback: CallbackQuery) -> None:
-    await callback.answer("")
-    await callback.message.edit_text("В разработек\nhttps://youtu.be/dQw4w9WgXcQ?si=Ug5KS8ekxJiV3-le")
-
-# TODO Go back
+    text = language.support_info_text
+    buttons = language.support_buttons
+    await handle_callback(callback, text, buttons)
